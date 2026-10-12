@@ -257,9 +257,9 @@ module ptb_clock_counter #(
   input  signed [TS_W-1:0] offset,
   input                    is_root,      // root keeps PTB == local time
   input                    enable,       // apply corrections
-  output reg [TS_W-1:0]    ptb_time      // PTB_clk
+  output reg [TS_W-1:0]    ptb_time,     // PTB_clk
+  output reg signed [TS_W-1:0] offset_applied  // correction currently in use
 );
-  reg signed [TS_W-1:0] offset_applied;
 
   always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -470,13 +470,17 @@ module ptb_clock_follower #(
   );
 
   // ---- Lock detect --------------------------------------------------------
+  // Lock is judged on the residual error: new measurement minus the correction
+  // currently applied (offset_applied still holds the old value at calc_valid).
   wire locked, lock_lost;
+  wire signed [TS_W-1:0] applied;
+  wire signed [TS_W-1:0] residual = offset - applied;
 
   ptb_lock_detect #(.TS_W(TS_W)) u_lock (
     .clk             (clk),
     .rst_n           (rst_n),
     .calc_valid      (calc_valid),
-    .offset          (offset),
+    .offset          (residual),
     .lock_thresh     (cfg_lock_th),
     .unlock_thresh   (cfg_unlock_th),
     .lock_count      (cfg_lock_cnt),
@@ -493,7 +497,8 @@ module ptb_clock_follower #(
     .offset     (offset),
     .is_root    (cfg_root),
     .enable     (cfg_enable),
-    .ptb_time   (ptb_clk)
+    .ptb_time   (ptb_clk),
+    .offset_applied (applied)
   );
 
   // ---- Message counters ---------------------------------------------------
